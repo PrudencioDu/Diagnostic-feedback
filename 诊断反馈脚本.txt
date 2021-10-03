@@ -1,0 +1,739 @@
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
+import numpy as np
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph
+import xlrd
+from reportlab.pdfgen import canvas
+from reportlab.lib.colors import pink, green, brown, white, black, red
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.fonts import addMapping
+from tkinter.filedialog import askdirectory, askopenfile, askopenfilename
+from tkinter import *
+pdfmetrics.registerFont（TTFont（'simsun', '../fonts/simsun.ttc'）） 
+# pdfmetrics.registerFont（TTFont（'STHUPO', 'STHUPO.ttf'））
+pdfmetrics.registerFont（TTFont（'simsun-bold', '../fonts/simsun-bold.ttf'））
+pdfmetrics.registerFont（TTFont（'heiti', 'simhei.ttf'））
+stylesheet = getSampleStyleSheet（）   # 获取样式集
+stylesheet.add（ParagraphStyle（name='body',fontName="SimSun",fontSize=13,textColor='black',leading=18））
+body = stylesheet['body']
+stylesheet.add（ParagraphStyle（name='stu_info',fontName="SimSun", fontSize=13,textColor='black',leading=20））
+stu_info = stylesheet['stu_info']
+# addMapping（'Vera', 0, 0, 'Vera'） #normal
+# addMapping（'Vera', 0, 1, 'Vera-Italic'） #italic
+# addMapping（'simsun', 0, 0, 'simsun'） #bold
+# addMapping（'simsun', 1, 0, 'simsun'） #bold
+# addMapping（'simsun', 0, 1, 'simsun'） #bold
+# addMapping（'simsun', 1, 1, 'simsun'） #bold
+
+def read_method（c, student）:
+	name = student[0]; sid = int（student[1]）; total_score = student[2]
+	level_value = ""
+	if 60 > total_score > 0 :
+		level_value = "较差"
+	elif 80 > total_score >= 60:
+		level_value = "中等"
+	else:
+		level_value = "优秀"
+	infor_name = "姓名: "+ name
+	infor1 = "学号: "+ str（sid）
+	infor2 = "总分: "+str（total_score）
+	infor3 = "水平组: "+str（level_value）
+	# c.setFont（"heiti", 14）
+	c.setFont（"simsun", 14）
+	obj = c.beginText（）  
+	# obj.textLine（"我的掌握情况"）
+	# obj.setTextOrigin（50, 780） 
+	# for line in [infor_name, infor1, infor2, infor3]:
+	# 	obj.textLine（line）
+	# c.drawText（obj）
+	stu_infos = "<para>姓名："+name+"<br/>学号："+str（sid）+"<br/>总分："+str（total_score）+"<br/>水平组: "+str（level_value）+"</para>"
+	p = Paragraph（stu_infos, stu_info）
+	_,h = p.wrap（160, 60）
+	# print（"reports size: ", _, h）
+	p.drawOn（c, 50, 710）
+
+	s1 = "本报告包含两部分："
+	s2 = "1）我的掌握情况：你的阅读技能掌握情况及与群体水平的对比。"
+	s3 = "2）我的表现分析：为你提供技能分析及补救建议。"
+	# perf_anal_content = "<para><font name='simsun' fontSize=13><b>诊断报告说明:</b><br/></font><font name='simsun' fontSize=13>"\
+	perf_anal_content = "<para><font name='simsun-bold' fontSize=13>诊断报告说明:<br/></font><font name='simsun' fontSize=13>"\
++s1+"<br/>"+s2+"<br/>"+s3+"</font></para>"
+	# p = Paragraph（perf_anal_content, stylesheet['body']）  和nbsp和nbsp  和nbsp和nbsp  
+	p = Paragraph（perf_anal_content, body）
+	_,h = p.wrap（300, 50）
+	# print（"reports size: ", _, h）
+	p.drawOn（c, 240, 710）
+	# c.setStrokeColor（white）
+	# c.setFillColorRGB（0.9, 0.9, 0.9）
+	# roundRect（self, x, y, width, height, radius, stroke=1, fill=0）:
+	# c.roundRect（30, 700, 900, 160, 50, stroke=1, fill=1） 
+	# c.setFillColor（black）
+
+def master_show（c, student, attr_mean_value）:
+	name = student[0]
+	attribute_score = [0]*8
+	attribute_name = ['A1','A2','A3','A4','A5','A6','A7','A8']
+	level_A = []; level_B = []; level_C = []
+	name_A = []; name_B = []; name_C = []
+	for j in range（8）:
+		attribute_score[j] = student[j+3]
+		# attribute_score[j] = "%.2f%%"%（student[j+3] * 100） 
+		if attribute_score[j] > 0.8 :
+			level_A.append（attribute_score[j]）
+			level_B.append（0）
+			level_C.append（0）
+			# name_A.append（attribute_name[j]）
+		elif attribute_score[j] > 0.4 :
+			level_B.append（attribute_score[j]）
+			level_A.append（0）
+			level_C.append（0）
+			# name_B.append（attribute_name[j]）
+		else:
+			level_C.append（attribute_score[j]）
+			level_A.append（0）
+			level_B.append（0）
+			# name_C.append（attribute_name[j]）
+	fig = plt.figure（）
+	x = np.arange（8）
+	bar_width = 0.3
+	# , shawdows=True
+	# y_label = ["%.2f%%"%（j * 100） for j in attribute_score]
+	# decimals to percentage
+	plt.ylim（[0,1]）
+	plt.gca（）.yaxis.set_major_formatter（FuncFormatter（to_percent））
+	# plt.yticks（["%.2f%%"%（j * 100） for j in [0,0.2,0.4,0.6,0.8,1]]）
+	
+	# plt.bar（name_A, level_A, color='g'）
+	# plt.bar（name_B, level_B, color='b'）
+	# plt.bar（name_C, level_C, color='r'）
+	plt.bar（x, attr_mean_value, bar_width, color='b'）
+	plt.bar（x+bar_width, level_A, bar_width, color='g', align='center'）
+	plt.bar（x+bar_width, level_B, bar_width, color='#d5b60a', align='center'）
+	plt.bar（x+bar_width, level_C, bar_width, color='r', align='center'）
+	# plt.bar（x, y_label）
+	plt.xticks（x, attribute_name）
+	plt.savefig（'../figures/%s_柱状图.png'%（name）, dpi=500）
+	plt.close（0）
+	c.drawInlineImage（'../figures/%s_柱状图.png'%（name）, 40,485, width=260,height=190）
+
+	c.setFont（"simsun-bold", 14）
+	obj = c.beginText（） 
+	obj.setTextOrigin（330, 640）  
+	obj.textLine（"我的掌握情况"）
+	# obj.setTextOrigin（50, 540） 
+	# for line in [infor1, infor2, infor3]:
+	# 	obj.textLine（line）
+	c.drawText（obj）
+	
+	c.setFont（"simsun", 14）
+	obj = c.beginText（）
+	obj.setTextOrigin（350, 600） 
+	obj.textLine（"图示："）
+	# c.setFillColorRGB（0,0,0.77）
+	# c.setStrokeColor（white）
+
+	obj.setTextOrigin（350, 580） 
+	infor1 = "红色： 0%——40%（掌握较差）"
+	infor2 = "黄色： 40%——80%（掌握良好）"
+	infor3 = "绿色： 80%——100%（掌握优秀）"
+	infor4 = "蓝色： 群体平均水平"
+	# for line in ["图示：", "", infor1, "", infor2, "", infor3]:
+
+	# for line in [infor1, infor2, infor3, infor4]:
+	# 	obj.textLine（line）
+	# c.drawText（obj）
+	infors = "<para><font color='red'>红色： </font> 0%——40%（掌握较差）<br/>"\
+			"<font color='#d5b60a'>黄色： </font> 40%——80%（掌握良好）<br/>"\
+			"<font color='green'>绿色： </font> 80%——100%（掌握优秀）<br/>"\
+			"<font color='blue'>蓝色： </font> 群体平均水平</para>"
+	p = Paragraph（infors, body）
+	_,h = p.wrap（300, 50）
+	# print（"reports size: ", _, h）
+	p.drawOn（c, 350, 530）
+
+def status（c）:
+	a1 = "A1 回指推理：根据前文出现的文本信息，推测代词（如“it”, “them”, “this”等）的"
+	a1_2 = "指代内容。"
+	a2 = "A2 词汇推理：根据上下文线索（即寻找生词周围文本信息作为线索）推测生词的词意。"
+	a3 = "A3 时间推理：根据时间标记词（如then, afterwards, subsequently, last week/month/year"
+	a3_2 = "等）、相关文本信息、或与文本相关的背景知识，推测一系列事件或句子发生的先后顺序。"
+	a4 = "A4 因果推理：根据因果关系标记词（如because, since, consequently, for this reason, "
+	a4_2 = "therefore等）、相关文本信息、或与文本相关的背景知识，推测事件间或陈述间的因果关系。"
+	a5 = "A5 前提结论推理：根据前文陈述的一系列前提信息或与文本相关背景知识，推测事件或陈述"
+	a5_2 = "的结论。"
+	a6 = "A6 主题推理：根据对文本信息的整体理解或与文本相关的背景知识，推测段落或文本的主旨"
+	a6_2 = "大意。"
+	a7 = "A7 理解句子字面意思：利用词汇、句法、语法等语言知识理解句子结构及其字面意思。"
+	a8 = "A8 理解篇章字面意思：整合多句的字面意思从而理解段落或篇章表达的字面意思。"
+	total_str = [a1,a1_2, a2, a3,a3_2, a4,a4_2, a5,a5_2, a6, a6_2,a7, a8]
+	c.setFont（"simsun-bold", 13）
+	obj = c.beginText（） 
+	obj.setTextOrigin（45, 450）  
+	obj.textLine（"阅读技能含义:"）
+	c.drawText（obj）
+
+	# c.setFont（"simsun", 13）
+	# obj = c.beginText（）
+	# obj.setTextOrigin（45, 455）  
+	# for line in total_str:
+	# 	obj.textLine（line）
+	# c.drawText（obj）
+
+	perf_anal_content = "<para><font name='simsun-bold' fontSize=11>A1回指推理:</font><font name='simsun' fontSize=11>"\
+			"根据前文出现的文本信息，推测代词（如“it”, “them”, “this”等）的指代内容。</font><br/>"\
+			"<font name='simsun-bold' fontSize=11>A2词汇推理:</font><font name='simsun' fontSize=11>"\
+			"根据上下文线索（即寻找生词周围文本信息作为线索）推测生词的词意。</font><br/>"\
+			"<font name='simsun-bold' fontSize=11>A3时间推理:</font><font name='simsun' fontSize=11>"\
+			"根据时间标记词（如then, afterwards, subsequently, last week/month/year" \
+			"等）、相关文本信息、或与文本相关的背景知识，推测一系列事件或句子发生的先后顺序。"\
+			"</font><br/><font name='simsun-bold' fontSize=11>A4因果推理:</font><font name='simsun' fontSize=11>"\
+			"根据因果关系标记词（如because, since, consequently, for this reason, "\
+			"therefore等）、相关文本信息、或与文本相关的背景知识，推测事件间或陈述间的因果关系。"\
+			"</font><br/><font name='simsun-bold' fontSize=11>A5前提结论推理:</font><font name='simsun' fontSize=11>"\
+			"根据前文陈述的一系列前提信息或与文本相关背景知识，推测事件或陈述的结论。"\
+			"</font><br/><font name='simsun-bold' fontSize=11>A6主题推理:</font><font name='simsun' fontSize=11>"\
+			"根据对文本信息的整体理解或与文本相关的背景知识，推测段落或文本的主旨大意。"\
+			"</font><br/><font name='simsun-bold' fontSize=11>A7理解句子字面意思:</font><font name='simsun' fontSize=11>"\
+			"利用词汇、句法、语法等语言知识理解句子结构及其字面意思。"\
+			"</font><br/><font name='simsun-bold' fontSize=11>A8理解篇章字面意思:</font><font name='simsun' fontSize=11>"\
+			"整合多句的字面意思从而理解段落或篇章表达的字面意思。"\
+			"</font></para>"
+	# p = Paragraph（perf_anal_content, stylesheet['body']）
+	p = Paragraph（perf_anal_content, body）
+	_,h = p.wrap（570, 200）
+	p.drawOn（c, 43, 265）
+	# c.setFillColorRGB（0.75, 0.75, 0.75）
+	# c.rect（30,300,700,900, fill=1）
+	# c.rect（inch,inch,6*inch,9*inch, fill=1）
+	# c.roundRect（30, 220, 900, 400, 50, stroke=1, fill=1） 
+	# fig = plt.figure（）
+	# x = np.arange（8）
+	# # , shawdows=True
+	# # y_label = ["%.2f%%"%（j * 100） for j in attribute_score]
+	# plt.gca（）.yaxis.set_major_formatter（FuncFormatter（to_percent））
+	# # plt.yticks（["%.2f%%"%（j * 100） for j in [0,0.2,0.4,0.6,0.8,1]]）
+	# plt.bar（x, attribute_score）
+	# # plt.bar（x, y_label）
+	# attribute_name = ['A1','A2','A3','A4','A5','A6','A7','A8']
+	# plt.xticks（x, attribute_name）
+	# plt.savefig（'../result/%s_柱状图.png'%（name）, dpi=500）
+	# plt.close（0）
+	# c.drawInlineImage（'../result/%s_柱状图.png'%（name）, 260,420, width=260,height=190）
+
+def module3（c, scores）:
+	subtitle = "我的表现分析"	
+	c.setFont（"simsun-bold", 15）
+	obj = c.beginText（） 
+	# c.setLineWidth（100）
+	obj.setTextOrigin（250, 210）  
+	obj.textLine（subtitle）
+	c.drawText（obj）
+	perf = [0]*8; suggest = [0]*8  # analysis_B = [0]*8; suggest_A = [];  
+	attr_no = ["A1","A2","A3","A4","A5","A6","A7","A8"]
+	attribute_desc = ["指代关系","词汇","事件的逻辑发展顺序","句间因果关系","事件及陈述的结论","文章主旨","语言知识"]
+	# level_A = []; level_B = []; level_C = []
+	attr_A = []; attr_B = []; attr_C = []
+	analysis_B = []; analysis_C = []
+	suggest_B = []; suggest_C = []
+	perf_final = ""; analysis_final = ""; suggest_final = ""
+	sum_A = 0; sum_B = 0; sum_C = 0
+	# print（"scores: ", scores）
+	if scores[0] > 0.8:
+		# perf[0] = "能够熟练运用上下文信息进行指代关系的阅读推理" 
+		# level_A.append（perf[0]）
+		attr_A.append（attr_no[0]）
+		sum_A += 1
+	elif scores[0] > 0.4:
+		# temp_analysis = "在推理指代关系方面能力尚可" 
+		# temp_suggest = "建议你在阅读时多关注指代词的含义"
+		temp_suggest = "多关注指代词的含义"
+		analysis_B.append（attribute_desc[0]）
+		# level_B.append（perf[0]）
+		attr_B.append（attr_no[0]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# temp_analysis = "但在指代关系方面的推理能力欠缺，需要引起警示" 
+		temp_suggest = "多关注指代词的含义"
+		analysis_C.append（attribute_desc[0]）
+		attr_C.append（attr_no[0]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[1] > 0.8:
+		# perf[1] = "能够熟练运用上下文信息进行词汇层面的阅读推理" 
+		# level_A.append（perf[1]）
+		attr_A.append（attr_no[1]）
+		sum_A += 1
+	elif scores[1] > 0.4:
+		# temp_analysis = "在推理词汇方面能力尚可" 
+		# temp_suggest = "建议你在阅读时多运用上下文信息推测生词的含义"
+		temp_suggest = "多运用上下文信息推测生词的含义"
+		analysis_B.append（attribute_desc[1]）
+		# level_B.append（perf[1]）
+		attr_B.append（attr_no[1]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# perf[1] = "在词汇方面的推理能力欠缺，需要引起警示" 
+		temp_suggest = "多运用上下文信息推测生词的含义"
+		# level_C.append（perf[1]）
+		attr_C.append（attr_no[1]）
+		analysis_C.append（attribute_desc[1]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[2] > 0.8:
+		# perf[2] = "能够熟练运用上下文信息推理事件的逻辑发展顺序" 
+		# level_A.append（perf[2]）
+		attr_A.append（attr_no[2]）
+		sum_A += 1
+	elif scores[2] > 0.4:
+		# temp_analysis = "在推理事件的逻辑发展顺序方面能力尚可" 
+		# temp_suggest = "建议你在阅读时多关注句子间的逻辑关系"
+		temp_suggest = "多关注句子间的逻辑关系"
+		analysis_B.append（attribute_desc[2]）
+		# level_B.append（perf[2]）
+		attr_B.append（attr_no[2]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# perf[2] = "在句间逻辑关系方面的推理能力欠缺，需要引起警示" 
+		temp_suggest = "多关注句子间的逻辑关系"
+		# level_C.append（perf[2]）
+		attr_C.append（attr_no[2]）
+		analysis_C.append（attribute_desc[2]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[3] > 0.8:
+		# perf[3] = "能够熟练运用上下文信息进行句间关系的阅读推理" 
+		# level_A.append（perf[3]）
+		attr_A.append（attr_no[3]）
+		sum_A += 1
+	elif scores[3] > 0.4:
+		# temp_analysis = "在推理句间因果关系方面能力尚可" 
+		# temp_suggest = "建议你在阅读时多关注句子间的因果关系"
+		temp_suggest = "多关注句子间的因果关系"
+		analysis_B.append（attribute_desc[3]）
+		# level_B.append（perf[3]）
+		attr_B.append（attr_no[3]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# perf[3] = "在句间因果关系方面的推理能力欠缺，需要引起警示" 
+		temp_suggest = "多关注句子间的因果关系"
+		# level_C.append（perf[3]）
+		attr_C.append（attr_no[3]）
+		analysis_C.append（attribute_desc[3]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[4] > 0.8:
+		# perf[4] = "能够熟练运用上下文信息推理事件及陈述的结论" 
+		# level_A.append（perf[4]）
+		attr_A.append（attr_no[4]）
+		sum_A += 1
+	elif scores[4] > 0.4:
+		# temp_analysis = "在推理事件及陈述的结论方面能力尚可" 
+		# temp_suggest = "建议你在阅读时多综合文本提到的前提信息得出结论"
+		temp_suggest = "多关注文章的前提信息，尝试综合这些信息推测结论"
+		analysis_B.append（attribute_desc[4]）
+		# level_B.append（perf[4]）
+		attr_B.append（attr_no[4]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# perf[4] = "在得出结论方面推理能力欠缺，需要引起警示" 
+		temp_suggest = "多关注文章的前提信息，尝试综合这些信息推测结论"
+		# level_C.append（perf[4]）
+		attr_C.append（attr_no[4]）
+		analysis_C.append（attribute_desc[4]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[5] > 0.8:
+		# perf[5] = "能够整合文章的核心内容，推断文本的主旨大意" 
+		# level_A.append（perf[5]）
+		attr_A.append（attr_no[5]）
+		sum_A += 1
+	elif scores[5] > 0.4:
+		# temp_analysis = "在推理文章主旨方面能力尚可" 
+		# temp_suggest = "建议你在阅读时多关注文章的主题思想"
+		temp_suggest = "厘清文章的篇章结构、核心观点，尝试提炼文章的主旨大意"
+		analysis_B.append（attribute_desc[5]）
+		# level_B.append（perf[5]）
+		attr_B.append（attr_no[5]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# perf[5] = "在篇章层面的推理能力欠缺，需要引起警示" 
+		temp_suggest = "厘清文章的篇章结构、核心观点，尝试提炼文章的主旨大意"
+		# level_C.append（perf[5]）
+		attr_C.append（attr_no[5]）
+		analysis_C.append（attribute_desc[5]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[6] > 0.8:
+		# perf[6] = "已具备扎实的语言知识，能够读懂句子的字面含义 " 
+		# level_A.append（perf[6]）
+		attr_A.append（attr_no[6]）
+		sum_A += 1
+	elif scores[6] > 0.4:
+		# temp_analysis = "已具备一定的语言知识" 
+		# temp_suggest = "建议你继续完善语言知识的学习"
+		temp_suggest = "首先加强词汇、语法及句法等方面的基本语言知识的学习"
+		analysis_B.append（attribute_desc[6]）
+		# level_B.append（perf[6]）
+		attr_B.append（attr_no[6]）
+		suggest_B.append（temp_suggest）
+		sum_B += 1
+	else:
+		# perf[6] = "的基本语言知识较为薄弱，难以读懂句子的字面含义 " 
+		temp_suggest = "首先加强词汇、语法及句法等方面的基本语言知识的学习"
+		# level_C.append（perf[6]）
+		attr_C.append（attr_no[6]）
+		analysis_C.append（attribute_desc[6]）
+		suggest_C.append（temp_suggest）
+		sum_C += 1
+	if scores[7] > 0.8:
+		# perf[7] = "已具备扎实的语言知识，能够读懂篇章的字面含义" 
+		# level_A.append（perf[7]）
+		attr_A.append（attr_no[7]）
+		sum_A += 1
+	elif scores[7] > 0.4:
+		# temp_analysis = "已具备一定的语言知识" 
+		# temp_suggest = "建议你继续完善语言知识的学习"
+		temp_suggest = "首先加强词汇、语法及句法等方面的基本语言知识的学习"
+		if attribute_desc[6] not in analysis_B :
+			analysis_B.append（attribute_desc[6]）
+			suggest_B.append（temp_suggest）
+		# level_B.append（perf[7]）
+		attr_B.append（attr_no[7]）
+		sum_B += 1
+	else:
+		# perf[7] = "的基本语言知识较为薄弱，难以读懂篇章的字面含义" 
+		temp_suggest = "首先加强词汇、语法及句法等方面的基本语言知识的学习"
+		# level_C.append（perf[7]）
+		attr_C.append（attr_no[7]）
+		if attribute_desc[6] not in analysis_C :
+			analysis_C.append（attribute_desc[6]）
+			suggest_C.append（temp_suggest）
+		sum_C += 1
+	if sum_A == 8:
+		perf_final = "你对所有8个阅读技能的掌握程度达到优秀水平!"
+		analysis_final = "这说明你的阅读推理能力很棒，但切勿骄傲！"
+		suggest_final = "在后期的阅读学习中，建议你继续保持良好的阅读习惯，"\
+		"并适当加强阅读练习，巩固对这些阅读技能的掌握程度。"\
+		"同时，建议你挑战难度更大的阅读材料，训练自身的批判性思维能力，进一步提升自己的阅读推理水平。"
+	elif sum_A != 0:
+		if sum_A == 1 :
+			perf_final = "你对1个阅读技能的掌握程度达到优秀水平，它是"+str（attr_A[0]）
+		else:
+			perf_final = "你对"+str（sum_A）+"个阅读技能的掌握程度达到优秀水平，它们分别是"
+			for i in range（sum_A - 2）:
+				perf_final += str（attr_A[i]） + "、"
+			if len（attr_A） >= 2 :
+				perf_final += str（attr_A[-2]） + "和"+ str（attr_A[-1]） + "；"
+			else:
+				perf_final += str（attr_A[-1]） + "；"
+	flag_a7_a8 = False
+	if sum_B == 8:
+		perf_final = "你对所有8个阅读技能的掌握程度达到良好水平"
+		analysis_final = "这说明你的阅读推理能力尚可，但仍有较大的进步空间。"
+		suggest_final = "在后期的阅读学习中，建议你继续完善语言知识的学习，"\
+		"巩固对词汇、语法及句法的掌握程度。在阅读过程中多运用所学的语言知识和阅读策略对字词、"\
+		"句子及篇章的隐含意义进行推理。同时，建议你增加考察各类阅读推理能力的阅读练习，"\
+		"逐渐锻炼自身的批判性思维能力，努力提高自己的阅读推理水平。"
+	elif sum_B != 0:
+		perf_final += "你对技能"
+		for i in range（sum_B - 2）:
+			perf_final += str（attr_B[i]） + "、"
+		if len（attr_B） >= 2 :
+			perf_final += str（attr_B[-2]） + "和" + str（attr_B[-1]） + "的掌握程度良好"
+		else:
+			perf_final += str（attr_B[-1]）  + "的掌握程度良好"
+		analysis_final += "这说明你"
+		# if analysis_B[-1] == analysis_B[-2] :
+		# 	analysis_B.remove（analysis_B[-1]）
+		suggest_final += "在后期的阅读学习中，建议你"
+		# print（"analysis_B: ", len（analysis_B））
+		# print（"sum_B: ", sum_B）
+		suggest_sentence = suggest_B
+		suggest_sentence.extend（suggest_C）
+		suggest_nodup = list（set（suggest_sentence））
+		a = "首先加强词汇、语法及句法等方面的基本语言知识的学习"
+		if a in suggest_nodup:
+			suggest_final += a
+			suggest_nodup.remove（a）
+		for i in range（len（suggest_nodup））:
+			suggest_final += "，" + str（suggest_nodup[i]）
+		if attribute_desc[6] in analysis_B :
+			analysis_final += "已具备一定的语言知识"
+			analysis_B.remove（attribute_desc[6]）
+			# suggest_final += suggest_B[-1] + "，"
+			# suggest_B.remove（suggest_B[-1]）
+			flag_a7_a8 = True
+			if len（analysis_B） == 0 and len（analysis_C） == 0 : 
+				analysis_final += "。"
+			elif len（analysis_B） == 0 and len（analysis_C） != 0 :
+				analysis_final += "；但"
+			else:
+				analysis_final += "，在推理"
+				for i in range（len（analysis_B） - 2）:
+					analysis_final += str（analysis_B[i]） + "、"
+				# print（"analysis_B: ", len（analysis_B））
+				if len（analysis_B） >= 2 :
+					analysis_final += str（analysis_B[-2]） + "和" + str（analysis_B[-1]） + "方面能力尚可"
+				else:
+					analysis_final += str（analysis_B[-1]） + "方面能力尚可"
+				# print（"suggest_B: ", len（suggest_B））
+				if len（analysis_C） == 0:
+					analysis_final += "。"
+				else:
+					analysis_final += "；"
+				# suggest_final += "，"
+				# for i in range（len（suggest_B））:
+					# suggest_final += str（suggest_B[i]） + "，"
+		else:
+			analysis_final += "在推理"
+			for i in range（len（analysis_B） - 2）:
+				analysis_final += str（analysis_B[i]） + "、"
+			# print（"analysis_B: ", len（analysis_B））
+			if len（analysis_B） >= 2 :
+			analysis_final += str（analysis_B[-2]） + "和" + str（analysis_B[-1]） + "方面能力尚可"
+			else:
+				analysis_final += str（analysis_B[-1]） + "方面能力尚可"
+			# print（"suggest_B: ", len（suggest_B））
+			# suggest_final += "，"
+			# for i in range（len（suggest_B））:
+				# suggest_final += str（suggest_B[i]） + "，"
+			if len（analysis_C） == 0:
+				analysis_final += "。"
+			else:
+				analysis_final += "；"
+		if sum_C == 0 :
+			perf_final += "。"
+			# analysis_final += "。"
+		else:
+			perf_final += "；"
+			# analysis_final += "；"
+			# if attribute_desc[6] in analysis_C:
+			# 	if flag_a7_a8 == False :
+			# 		# suggest_final += "，"
+			# 	# else:
+			# 		flag_a7_a8 = True
+			# 		suggest_final += suggest_C[-1] + "，"
+			# 	suggest_C.remove（suggest_C[-1]）
+			# 	# suggest_final += suggest_C[-1]
+			# 	# sum_C -= 1
+			# for i in range（len（suggest_C））:
+			# 	suggest_final += str（suggest_C[i]） + "，"
+		suggest_final += "并重点加强技能"
+		temp_attr = attr_B
+		temp_attr.extend（attr_C）
+		temp_attr.sort（）
+		for i in range（len（temp_attr） - 2）:
+			suggest_final += str（temp_attr[i]） + "、"
+		# for i in range（sum_C - 2）:
+		# 	suggest_final += str（attr_C[i]） + "、"
+		# print（attr_B, attr_C）
+		if len（temp_attr） >= 2 :
+			suggest_final += str（temp_attr[-2]） + "和" + str（temp_attr[-1]） + "的阅读练习，努力提高对它们的掌握程度。"
+		else:
+			suggest_final += str（temp_attr[-1]） + "的阅读练习，努力提高对它们的掌握程度。"
+	if sum_C == 8:
+		perf_final = "你对所有8个阅读技能的掌握程度较差。"
+		analysis_final = "这说明你的基本语言知识较为薄弱，且各方面推理能力均有欠缺，需要引起警示，但不要灰心！"
+		suggest_final = "在后期的阅读学习中，建议你首先加强词汇、语法及句法等方面的基本语言知识的学习，"\
+		"从难度较低的阅读材料入门，先尝试读懂句子及篇章的字面含义。"\
+		"在此基础上，建议你在阅读过程中多运用上下文信息推理指代词及生词的含义，逐步提高词汇层面的推理技能。"\
+		"同时，应关注贯穿各个句子及段落的关系代词、衔接词等、尝试厘清句子间及段落间的逻辑关系、因果关系，"\
+		"把握文章的核心观点和篇章结构，逐步尝试对句子及篇章层面隐含的意义进行推理。"\
+		"此外，应加大平时的阅读练习，在阅读时要保持注意力集中，养成良好的阅读习惯，"\
+		"多动脑，勤思考，由易到难，循序渐进，相信你的阅读推理水平会在不远的将来得到显著的提升！"
+	elif sum_C != 0:
+		perf_final += "但对技能"
+		for i in range（sum_C - 2）:
+			perf_final += str（attr_C[i]） + "、"
+		if len（attr_C） >= 2 :
+			perf_final += str（attr_C[-2]） + "和" + str（attr_C[-1]） + "的掌握程度较差。"
+		else:
+			perf_final += str（attr_C[-1]） + "的掌握程度较差。"
+		if sum_B == 0 :
+			analysis_final += "这说明你"
+			suggest_final += "在后期的阅读学习中，建议你"
+			if attribute_desc[6] in analysis_C :
+				suggest_final += suggest_C[-1] + "，"
+				suggest_C.remove（suggest_C[-1]）
+			for i in range（len（suggest_C））:
+				suggest_final += str（suggest_C[i]） + "，"
+			suggest_final += "并重点加强技能"
+			for i in range（sum_C - 2）:
+				suggest_final += str（attr_C[i]） + "、"
+			if len（attr_C） >= 2 :
+				suggest_final += str（attr_C[-2]） + "和" + str（attr_C[-1]） + "的阅读练习，努力提高对它们的掌握程度。"
+			else:
+				suggest_final += str（attr_C[-1]） + "的阅读练习，努力提高对它们的掌握程度。"
+		else:
+			analysis_final += ""
+		# if analysis_B[-1] == analysis_B[-2] :
+		# 	analysis_B.remove（analysis_B[-1]）
+		ad6_flag = False
+		if attribute_desc[6] in analysis_C :
+			analysis_final += "基本语言知识较为薄弱"
+			analysis_C.remove（attribute_desc[6]）
+			# if flag_a7_a8 == False :
+			# 	suggest_final += "，"
+			# else:
+				# suggest_final += suggest_C[-1] + "，"
+			# suggest_C.remove（suggest_C[-1]）
+			sum_C -= 1
+			ad6_flag = True
+		if len（analysis_C） == 0: 
+			analysis_final += "。"
+		# elif len（analysis_C） == 0 and sum_B != 0 :
+			# analysis_final += ";"
+		else:
+			if ad6_flag == True :
+				analysis_final += "，"
+			# analysis_final += "，"
+		# if 'A1' or 'A2' or 'A3' or 'A4' or 'A5' or 'A6' in attr_C :
+			analysis_final += "在推理"
+			for i in range（len（analysis_C） - 2）:
+				analysis_final += str（analysis_C[i]） + "、"
+			if len（analysis_C） >= 2 :
+				analysis_final += str（analysis_C[-2]） + "和"+ str（analysis_C[-1]） + "方面能力欠缺，需要引起警示。"
+			else:
+				analysis_final += str（analysis_C[-1]） + "方面能力欠缺，需要引起警示。"
+		# else:
+			# analysis_final += "。"
+		# if sum_B == 0 :
+		# 	# suggest_final += "在后期的阅读学习中，建议你"
+		# 	# if attribute_desc[6] in analysis_C :
+		# 		# sum_C -= 1
+		# 	for i in range（sum_C）:
+		# 		suggest_final += str（suggest_C[i]） + "，"
+		# 	suggest_final += "并重点加强技能"
+		# 	for i in range（sum_C - 2）:
+		# 		suggest_final += str（attr_C[i]） + "、"
+		# 	if len（attr_C） >= 2 :
+		# 		suggest_final += str（attr_C[-2]） + "和" + str（attr_C[-1]） + "的阅读练习，努力提高对它们的掌握程度。"
+		# 	else:
+		# 		suggest_final += str（attr_C[-1]） + "的阅读练习，努力提高对它们的掌握程度。"
+	# temp_str = "注：如果你对本诊断反馈存在疑问，请及时咨询老师，排除你的困扰。"
+	# perf.append（temp_str）
+	
+	# performance_content = ""
+	perf_anal_content 	= "<para><font name='simsun-bold' size=13>表现：</font><font name='simsun' size=13>"+perf_final+"</font><br/>"\
+						"<font name='simsun-bold' size=13>分析：</font><font name='simsun' size=13>" +analysis_final+"</font><br/>"\
+						"<font name='simsun-bold' size=13>建议：</font><font name='simsun' size=13>"+suggest_final+"</font></para>"
+	# perf_anal_content 	= "<para><font name='simsun-bold' size=13>表现：</font><font name='simsun' size=13>"+perf_final+"</font><br/><br/>"\
+	# 					"<font name='simsun-bold' size=13>分析：</font><font name='simsun' size=13>" +analysis_final+"</font><br/><br/>"\
+	# 					"<font name='simsun-bold' size=13>建议：</font><font name='simsun' size=13>"+suggest_final+"</font></para>"
+	p = Paragraph（perf_anal_content, stylesheet['body']）
+	# p = Paragraph（perf_anal_content, stylesheet['BodyText']）
+	_,h = p.wrap（500, 200）
+	# print（"size: ", _,h）
+	p.drawOn（c, 50, 200-h）	
+	# c.setFont（"simsun", 13）
+	# obj = c.beginText（） 
+	# obj.setTextOrigin（50, 350）  
+	# for line in [perf_final,suggest_total]:
+	# 	obj.textLine（line）
+	# c.drawText（obj）
+	# c.setFillColorRGB（0.65, 0.65, 0.65）
+	# c.roundRect（30, 220, 900, 400, 50, stroke=1, fill=1） 
+
+def	generate_report（student, write_file, attr_mean_value）:
+# def generate_report（student_score, student_answer, write_file, attr_mean_value, ref_answer）:
+	c = canvas.Canvas（write_file, pagesize=A4）
+	# print（"fonts: ", c.getAvailableFonts（））
+	width, height = A4  # 使用默认的A4大小
+	# c.setFont（"simsun", 14）
+	# obj = c.beginText（） 
+	# obj.setTextOrigin（50, 760）  
+	# for line in [infor_name, "", infor1, "", infor2, "", infor3]:
+	# 	obj.textLine（line）
+	# c.drawText（obj）
+	# # name = student_score[0]
+	# attribute_score = [0]*8
+	# for j in range（8）:
+	# 	attribute_score[j] = student[j+3]
+	# 	# attribute_score[j] = "%.2f%%"%（student[j+3] * 100） 
+	c.setStrokeColor（white）
+	c.setFillColorRGB（0.9, 0.9, 0.9）
+	c.roundRect（30, 695, 540, 115, 30, stroke=1, fill=1） 
+	c.setFillColorRGB（1, 1, 1）
+	c.roundRect（205, 695, 362, 115, 50, stroke=1, fill=1） 
+	c.setFillColorRGB（0.85, 0.85, 0.85）
+	c.roundRect（30, 239, 540, 446, 0, stroke=1, fill=1） 
+	# c.setFillColorRGB（0.85, 0.85, 0.85）
+	c.setStrokeColor（black）
+	c.roundRect（38, 255, 520, 218, 0, stroke=1, fill=1） 
+	c.setStrokeColor（white）
+	c.setFillColorRGB（0.75, 0.75, 0.75）
+	# c.roundRect（30, 240, 540, 145, 30, stroke=1, fill=1）
+	# c.setFillColorRGB（0.65, 0.65, 0.65）
+	c.roundRect（30, 5, 540, 225, 30, stroke=1, fill=1）  
+	c.setFillColorRGB（1, 1, 1）
+	c.roundRect（334, 515, 220, 100, 0, stroke=1, fill=1） 
+	c.setFillColor（black）
+	title = "英语阅读推理测试诊断报告"
+	c.setFont（"simsun", 20）  # 处理中文字体
+	# c.create_text（10,10,fill="darkblue",font="Times 20 italic bold",
+                        # text="Click the bubbles that are multiples of two."）
+	obj = c.beginText（） 
+	obj.setTextOrigin（200, 815）  
+	obj.textLine（title）
+	c.drawText（obj）	
+	
+	read_method（c, student）
+	# show_table（c, student）
+	# notes
+	attribute_score = [0]*8
+	for j in range（8）:
+		attribute_score[j] = student[j+3]
+	master_show（c, student, attr_mean_value）
+	status（c）
+	# c.showPage（）
+	# # performance
+	# me_vs_group（c, attribute_score, attr_mean_value, student[0]）
+	module3（c, attribute_score）
+
+	c.showPage（）
+	c.save（）
+
+def read_excel（fileName）:
+	data = xlrd.open_workbook（fileName）
+	table = data.sheet_by_name（'Sheet1'）
+	return table
+
+if __name__ == "__main__" :
+	# root = Tk（）
+	# root.title（u"生成报告"）
+	a = askopenfilename（）
+	data = xlrd.open_workbook（a）
+	# lable = Label（root, text="生成报告", bg="pink",bd=10, font=（"Arial",12）, width=8, height=3）
+	# lable.pack（side=LEFT）
+	# path = input（u"请输入文件位置："）
+	# file = input（u"请输入文件名称："）
+	# data = xlrd.open_workbook（path+"\\"+ file）
+	# data = xlrd.open_workbook（"../data/scores.xlsx"）
+	# data = xlrd.open_workbook（"scores.xlsx"）
+	table = data.sheet_by_name（'Sheet1'）
+	# print（table.row_values（-1））
+	attr_mean_value = table.row_values（-1）[3:11]
+	# mean_list = table.row_values（-1）[3:11]
+	# attr_mean_value = ["%.2f%%"%（j * 100） for j in mean_list]
+	# print（attr_mean_value）
+	for i in range（1, table.nrows-1）:
+	# for i in range（1, 2）:
+	# for i in range（8, 9）:
+		# print（table.row_values（i）.encode（"utf-8"））
+		student = table.row_values（i）
+		write_file = "../reports/"+student[0]+".pdf"	
+		# write_file = student[0]+".pdf"	
+		generate_report（student, write_file, attr_mean_value）
+	# root.mainloop（）
